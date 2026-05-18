@@ -6,7 +6,6 @@ const stockRoutes = require('./routes/stock');
 const analysisRoutes = require('./routes/analysis');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 app.use(cors({ origin: '*' }));
 app.use(express.json());
@@ -20,6 +19,5 @@ app.get('/', (req, res) => {
 app.use('/api/stock', stockRoutes);
 app.use('/api/analysis', analysisRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// 导出 app 给 Vercel 用，本地开发用 server.js 启动
+module.exports = app;

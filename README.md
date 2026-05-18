@@ -4,8 +4,7 @@
 
 ## 🌐 在线访问
 
-- **前端页面**: `https://ai-stock-dashboard-frontend.onrender.com` (待部署)
-- **API 服务**: `https://ai-stock-dashboard-api.onrender.com` (待部署)
+> 部署后在此填写在线 URL
 
 ## ✨ 功能
 
@@ -20,10 +19,19 @@
 |------|------|
 | 前端 | Vue 3 + Vite |
 | 后端 | Node.js + Express |
-| 股票 API | Yahoo Finance (免费) |
-| LLM API | OpenAI / Groq (免费额度) |
+| 股票 API | Twelve Data (免费 800次/天) |
+| LLM API | OpenAI GPT-3.5 |
 | 数据库 | Supabase (PostgreSQL) |
 | 部署 | Render.com |
+
+## 📋 已配置 API Keys
+
+```
+OPENAI_API_KEY         = ✅ 已配置
+TWELVE_DATA_API_KEY    = ✅ 已配置 (9e513ef98ad04b6488a364cdb58d6173)
+SUPABASE_URL           = ✅ 已配置 (https://orouwfqfgitffntfzbvj.supabase.co)
+SUPABASE_ANON_KEY      = ⬜ 待填写（在 Supabase 后台复制）
+```
 
 ## 📦 本地运行
 
@@ -38,7 +46,7 @@ cd ../frontend && npm install
 
 # 3. 配置环境变量
 cp backend/.env.example backend/.env
-# 编辑 .env 填入你的 API Key
+# 编辑 backend/.env 填入你的 API Key
 
 # 4. 启动后端
 cd backend
@@ -49,26 +57,53 @@ cd frontend
 npm run dev
 ```
 
+访问 http://localhost:5173
+
+## 🗄️ Supabase 数据库初始化
+
+在 Supabase 后台 → **SQL Editor** 中执行：
+
+```sql
+CREATE TABLE IF NOT EXISTS stock_analysis (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  symbol TEXT NOT NULL,
+  stock_data JSONB NOT NULL,
+  summary TEXT NOT NULL,
+  sentiment TEXT NOT NULL CHECK (sentiment IN ('Bullish', 'Neutral', 'Bearish')),
+  risk_level TEXT NOT NULL CHECK (risk_level IN ('Low', 'Medium', 'High')),
+  raw_response JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_symbol ON stock_analysis(symbol);
+CREATE INDEX IF NOT EXISTS idx_created_at ON stock_analysis(created_at DESC);
+
+ALTER TABLE stock_analysis ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all insert" ON stock_analysis FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow all select" ON stock_analysis FOR SELECT USING (true);
+```
+
 ## 🤖 Prompt 设计
 
-### 强制 LLM 返回严格 JSON 的核心 Prompt
+### 系统 Prompt（强制 JSON 输出）
 
 ```javascript
-const systemPrompt = `You are a professional stock analyst. Analyze the provided stock data and return a STRICT JSON response.
+const systemPrompt = `You are a professional stock analyst. Return ONLY valid JSON.
 
 Rules:
-1. Return ONLY valid JSON. No markdown, no explanations outside JSON.
-2. sentiment must be exactly one of: "Bullish", "Neutral", or "Bearish"
-3. risk_level must be exactly one of: "Low", "Medium", or "High"
-4. summary should be a concise 2-3 sentence analysis in Chinese
-5. Do not include any text before or after the JSON
+1. Return ONLY valid JSON. No markdown, no explanations.
+2. sentiment: "Bullish" | "Neutral" | "Bearish"
+3. risk_level: "Low" | "Medium" | "High"
+4. summary: 2-3 sentences in Chinese
+5. key_points: array of 3 strings
 
-Expected JSON format:
+JSON format:
 {
   "summary": "string",
   "sentiment": "Bullish|Neutral|Bearish",
   "risk_level": "Low|Medium|High",
-  "key_points": ["string", "string", ...]
+  "key_points": ["string", "string", "string"]
 }`;
 ```
 
@@ -82,51 +117,26 @@ const cleanJson = content
   .trim();
 
 // 严格 JSON 解析
-try {
-  return JSON.parse(cleanJson);
-} catch (error) {
-  throw new Error(`LLM response is not valid JSON: ${error.message}`);
-}
+return JSON.parse(cleanJson);
 ```
 
 ## 🐛 Debug 记录
 
-### Bug 1: CORS 跨域问题
+### Bug 1: Yahoo Finance 403 错误
+**现象**: Yahoo Finance API 返回 403 Forbidden
+**解决**: 改用 Twelve Data API，demo key 可用（`https://api.twelvedata.com`）
 
-**现象**: 前端调用后端 API 时浏览器报 CORS 错误
-```
-Access to fetch at 'http://localhost:3000/api/stock/AAPL' 
-from origin 'http://localhost:5173' has been blocked by CORS policy
-```
+### Bug 2: CORS 跨域问题
+**现象**: 浏览器报 CORS 错误
+**解决**: Express 安装 `cors` 中间件
 
-**原因**: Express 默认不启用跨域，前端和后端运行在不同端口
+### Bug 3: LLM 返回非 JSON
+**现象**: LLM 返回 markdown 代码块包裹的 JSON
+**解决**: 正则清理 ` ```json ` 标记
 
-**解决**: 安装 `cors` 中间件
-```javascript
-const cors = require('cors');
-app.use(cors());
-```
-
-### Bug 2: LLM 返回非 JSON 格式
-
-**现象**: LLM 有时会在 JSON 外面包一层 markdown 代码块，如：
-```json
-{ "summary": "..." }
-```
-
-**解决**: 正则清理 markdown 标记
-```javascript
-const cleanJson = content
-  .replace(/^```json\s*/, '')
-  .replace(/```\s*$/, '')
-  .trim();
-```
-
-### Bug 3: Yahoo Finance API 返回空数据
-
-**现象**: 某些港股代码（如 0700.HK）返回 404
-
-**解决**: Yahoo Finance 使用 `.HK` 后缀，但需确保代码格式正确。已在代码中添加 try-catch 和详细错误信息。
+### Bug 4: 网络代理导致连接失败
+**现象**: `ENOTFOUND` 或 `502` 错误
+**解决**: 部署到 Render，云端网络无代理限制
 
 ## 📁 项目结构
 
@@ -134,52 +144,50 @@ const cleanJson = content
 ai-stock-dashboard/
 ├── backend/
 │   ├── src/
-│   │   ├── index.js           # Express 入口
-│   │   ├── routes/
-│   │   │   ├── stock.js       # 股票数据路由
-│   │   │   └── analysis.js    # AI 分析路由
+│   │   ├── index.js
+│   │   ├── routes/stock.js
+│   │   ├── routes/analysis.js
 │   │   └── services/
-│   │       ├── stockService.js   # Yahoo Finance API
-│   │       ├── llmService.js     # LLM 调用
-│   │       └── supabaseService.js # 数据库操作
-│   ├── package.json
-│   └── .env.example
+│   │       ├── stockService.js      # Twelve Data
+│   │       ├── llmService.js        # OpenAI
+│   │       └── supabaseService.js   # 数据库
+│   ├── .env                         # 敏感信息
+│   └── package.json
 ├── frontend/
 │   ├── src/
 │   │   ├── App.vue
-│   │   ├── components/
-│   │   │   ├── StockSearch.vue
-│   │   │   ├── StockInfo.vue
-│   │   │   └── AnalysisResult.vue
-│   │   └── main.js
-│   ├── index.html
+│   │   └── components/
+│   │       ├── StockSearch.vue
+│   │       ├── StockInfo.vue
+│   │       └── AnalysisResult.vue
 │   └── package.json
-├── supabase/init.sql          # 数据库初始化脚本
-├── render.yaml                # Render 部署配置
+├── supabase/init.sql
+├── render.yaml
 └── README.md
 ```
 
-## 🔑 环境变量
-
-在 `backend/.env` 中配置：
-
-```env
-PORT=3000
-OPENAI_API_KEY=sk-xxx
-# 或
-GROQ_API_KEY=gsk_xxx
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_ANON_KEY=eyJ...
-```
-
-> 💡 推荐先用 **Groq**（免费，速度快），用完了再用 OpenAI
-
 ## 🚀 部署到 Render
 
-1. 推送代码到 GitHub
-2. 在 Render 创建 Web Service，关联 GitHub 仓库
-3. 添加环境变量
-4. 部署完成获取 URL
+1. 推送代码到 GitHub（代码已提交，需手动 push）
+2. 登录 https://render.com，用 GitHub 关联仓库
+3. 创建 **Web Service**：
+   - Build Command: `cd backend && npm install`
+   - Start Command: `cd backend && npm start`
+4. 添加环境变量（在 Render Dashboard）：
+   - `OPENAI_API_KEY` = 你的 key
+   - `SUPABASE_URL` = `https://orouwfqfgitffntfzbvj.supabase.co`
+   - `SUPABASE_ANON_KEY` = 你的 anon key
+   - `TWELVE_DATA_API_KEY` = `9e513ef98ad04b6488a364cdb58d6173`
+5. 部署完成，复制 URL 到 README
+
+## 🔑 环境变量说明
+
+| 变量 | 说明 | 获取方式 |
+|------|------|----------|
+| OPENAI_API_KEY | LLM 接口 | platform.openai.com/api-keys |
+| TWELVE_DATA_API_KEY | 股票数据 | twelvedata.com（免费注册） |
+| SUPABASE_URL | 数据库地址 | Supabase 项目设置 |
+| SUPABASE_ANON_KEY | 客户端 Key | Supabase 项目设置 → API |
 
 ## 📄 License
 

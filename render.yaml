@@ -1,20 +1,35 @@
+# 后端 API 服务
 services:
   - type: web
     name: ai-stock-dashboard-api
     runtime: node
+    region: singapore
     buildCommand: cd backend && npm install
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
         value: production
-    envVarGroups:
-      - name: api-keys
-        envVars:
-          - key: OPENAI_API_KEY
-            sync: false
-          - key: GROQ_API_KEY
-            sync: false
-          - key: SUPABASE_URL
-            sync: false
-          - key: SUPABASE_ANON_KEY
-            sync: false
+      - key: PORT
+        value: 3000
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: TWELVE_DATA_API_KEY
+        value: 9e513ef98ad04b6488a364cdb58d6173
+      - key: SUPABASE_URL
+        value: https://orouwfqfgitffntfzbvj.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false
+
+# 前端静态站点
+staticSites:
+  - name: ai-stock-dashboard-frontend
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    routes:
+      - path: /
+    headers:
+      - name: Access-Control-Allow-Origin
+        value: "*"
+    envVars:
+      - key: VITE_API_URL
+        value: https://ai-stock-dashboard-api.onrender.com/api

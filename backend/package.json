@@ -1,0 +1,21 @@
+{
+  "name": "ai-stock-dashboard-backend",
+  "version": "1.0.0",
+  "description": "AI Stock Analysis Dashboard API",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "axios": "^1.7.2",
+    "@supabase/supabase-js": "^2.43.4",
+    "openai": "^4.52.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}

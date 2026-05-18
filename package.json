@@ -1,0 +1,12 @@
+{
+  "name": "ai-stock-dashboard",
+  "version": "1.0.0",
+  "description": "AI 股票分析面板 - 全栈应用",
+  "scripts": {
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm start"
+  }
+}
